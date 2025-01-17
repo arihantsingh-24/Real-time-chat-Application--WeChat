@@ -28,11 +28,37 @@ app.get("/", (req, res) => {
 // Use Auth Routes
 app.use('/api/auth', authRoutes);
 
-io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
+// Store active users and their sockets
+const users = {};
 
+io.on("connection", (socket) => {
+  console.log("A user connected: " + socket.id);
+
+  // Store the user with the socket ID (on user login or connect)
+  socket.on("setUsername", (username) => {
+    users[username] = socket.id; // Store socket ID for the user
+    console.log(`User ${username} connected`);
+  });
+
+  // Handle incoming chat messages
+  socket.on("sendMessage", (message, recipientUsername) => {
+    const recipientSocketId = users[recipientUsername];
+
+    if (recipientSocketId) {
+      // Emit message to the recipient user
+      io.to(recipientSocketId).emit("receiveMessage", message);
+    }
+  });
+
+  // Handle user disconnection
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
+    for (const username in users) {
+      if (users[username] === socket.id) {
+        delete users[username]; // Remove user on disconnect
+        console.log(`${username} disconnected`);
+        break;
+      }
+    }
   });
 });
 
